@@ -1,0 +1,29 @@
+name: Daily Umbrella Check
+
+on:
+  schedule:
+    - cron: '0 22 * * *' # 日本時間の朝7時（UTCでは前日22時）
+  workflow_dispatch: # 手動でテスト実行するためのボタン
+
+jobs:
+  check-weather:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get weather and notify
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          # 東京の天気を取得（緯度35.68, 経度139.75）
+          RESPONSE=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=35.6895&longitude=139.6917&daily=precipitation_probability_max&timezone=Asia%2FTokyo")
+          
+          # 今日の最高降水確率を抽出
+          PROBABILITY=$(echo $RESPONSE | jq '.daily.precipitation_probability_max[0]')
+          
+          if [ $PROBABILITY -ge 50 ]; then
+            MESSAGE="☔ 今日の降水確率は ${PROBABILITY}% です。傘を持っていきましょう！"
+          else
+            MESSAGE="☀️ 今日の降水確率は ${PROBABILITY}% です。傘は不要そうです。"
+          fi
+          
+          # Discordへ送信
+          curl -H "Content-Type: application/json" -X POST -d "{\"content\": \"$MESSAGE\"}" $WEBHOOK_URL

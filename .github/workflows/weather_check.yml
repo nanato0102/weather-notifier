@@ -2,7 +2,7 @@ name: Daily Umbrella Check
 
 on:
   schedule:
-    - cron: '0 22 * * *' # 日本時間の朝7時（UTCでは前日22時）
+    - cron: '30 22 * * *' # 日本時間の朝7時30分（UTC 22:30）
   workflow_dispatch: # 手動でテスト実行するためのボタン
 
 jobs:

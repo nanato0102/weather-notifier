@@ -1,9 +1,9 @@
-name: Daily Umbrella Check
+name: Daily Weather & Outfit Notifier
 
 on:
   schedule:
-    - cron: '30 22 * * *' # 日本時間の朝7時30分（UTC 22:30）
-  workflow_dispatch: # 手動でテスト実行するためのボタン
+    - cron: '30 22 * * *' # 日本時間 7:30
+  workflow_dispatch:
 
 jobs:
   check-weather:
@@ -13,17 +13,35 @@ jobs:
         env:
           WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          # 東京の天気を取得（緯度35.68, 経度139.75）
-          RESPONSE=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=35.6895&longitude=139.6917&daily=precipitation_probability_max&timezone=Asia%2FTokyo")
+          # 東京の天気・気温データを取得
+          RESPONSE=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=35.6895&longitude=139.6917&daily=precipitation_probability_max,temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo")
           
-          # 今日の最高降水確率を抽出
-          PROBABILITY=$(echo $RESPONSE | jq '.daily.precipitation_probability_max[0]')
+          # 各データの抽出
+          PROB_MAX=$(echo $RESPONSE | jq '.daily.precipitation_probability_max[0]')
+          TEMP_MAX=$(echo $RESPONSE | jq '.daily.temperature_2m_max[0]')
+          TEMP_MIN=$(echo $RESPONSE | jq '.daily.temperature_2m_min[0]')
           
-          if [ $PROBABILITY -ge 50 ]; then
-            MESSAGE="☔ 今日の降水確率は ${PROBABILITY}% です。傘を持っていきましょう！"
+          # 傘の判定
+          if [ $PROB_MAX -ge 50 ]; then
+            UMBRELLA="☔ 降水確率 ${PROB_MAX}% です。傘を忘れずに！"
           else
-            MESSAGE="☀️ 今日の降水確率は ${PROBABILITY}% です。傘は不要そうです。"
+            UMBRELLA="☀️ 降水確率 ${PROB_MAX}% です。傘はなくて大丈夫そうです。"
           fi
           
-          # Discordへ送信
+          # 服装の判定（最高気温ベース）
+          if (( $(echo "$TEMP_MAX >= 25" | bc -l) )); then
+            OUTFIT="👕 半袖や軽いシャツが快適です。"
+          elif (( $(echo "$TEMP_MAX >= 20" | bc -l) )); then
+            OUTFIT="👔 シャツにジャケット、または薄手の長袖がおすすめ。"
+          elif (( $(echo "$TEMP_MAX >= 15" | bc -l) )); then
+            OUTFIT="🧥 カーディガンやトレンチコートなど、羽織るものが必要です。"
+          elif (( $(echo "$TEMP_MAX >= 10" | bc -l) )); then
+            OUTFIT="🧥 冬用コートや厚手のニットで暖かくしてください。"
+          else
+            OUTFIT="🧣 しっかりとした防寒対策（マフラーや厚手コート）を！"
+          fi
+          
+          # Discord送信用のメッセージ組み立て
+          MESSAGE="【本日の予報】\n🌡️ 気温: 最低 ${TEMP_MIN}℃ / 最高 ${TEMP_MAX}℃\n${UMBRELLA}\n${OUTFIT}"
+          
           curl -H "Content-Type: application/json" -X POST -d "{\"content\": \"$MESSAGE\"}" $WEBHOOK_URL

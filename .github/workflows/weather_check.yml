@@ -2,7 +2,7 @@ name: Daily Weather & Outfit Notifier
 
 on:
   schedule:
-    - cron: '30 22 * * *' # 日本時間 7:30
+    - cron: '38 21 * * *' # 日本時間 7:30
   workflow_dispatch:
 
 jobs:
